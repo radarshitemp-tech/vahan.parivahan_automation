@@ -20,7 +20,8 @@
     {
       "source": "/(.*)",
       "destination": {
-        "service": "app"
+        "service": "app",
+        "path": "/index.html"
       }
     }
   ]
