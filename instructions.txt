@@ -1,0 +1,8 @@
+-------------------------- Frontend ------------------------------
+npm run dev
+
+
+-------------------- Backend -------------------------------------
+python -m uvicorn main:app --host 127.0.0.1 --port 8003
+
+Adjust Port accordingly and change port on \backend directory
