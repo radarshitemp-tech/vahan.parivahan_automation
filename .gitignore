@@ -6,9 +6,15 @@ node_modules/
 # Logs and Log Files
 *.log
 *.log.*
-logs/
 *.log.[0-9]*
-vahan_automation*.log
+*.log*
+logs/
+*/logs/
+*.log.bak
+*.log.old
+vahan_automation*.log*
+chromedriver*.log*
+geckodriver*.log*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

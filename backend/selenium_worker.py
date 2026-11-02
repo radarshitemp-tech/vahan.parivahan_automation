@@ -30,6 +30,11 @@ from models import (
 )
 from logger_service import execution_logger
 from validator import normalize_header
+from core.browser_manager import (
+    create_robust_chrome_options,
+    launch_chrome_with_fallback,
+    browser_manager
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("VahanSeleniumWorker")
@@ -197,7 +202,7 @@ class VahanSeleniumWorker:
                             pass
                         self.driver = None
 
-                    logger.info("Initializing visible Chrome driver...")
+                    logger.info("Initializing robust Chrome driver...")
                     execution_logger.log(
                         level=LogLevel.INFO,
                         execution_type=ExecutionType.AUTHENTICATION,
@@ -205,17 +210,12 @@ class VahanSeleniumWorker:
                         stage="INITIALIZE_BROWSER",
                         action="LAUNCH_CHROME",
                         result="INITIATING",
-                        message="Launching visible Chrome browser for VAHAN portal."
+                        message="Launching Chrome browser with stability options for VAHAN portal."
                     )
 
-                    chrome_options = Options()
-                    chrome_options.add_argument("--start-maximized")
-                    chrome_options.add_argument("--disable-notifications")
-                    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-                    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-                    chrome_options.add_experimental_option("useAutomationExtension", False)
-
-                    self.driver = webdriver.Chrome(options=chrome_options)
+                    chrome_options = create_robust_chrome_options()
+                    self.driver = launch_chrome_with_fallback(chrome_options)
+                    browser_manager.driver = self.driver
                     logger.info("Chrome launched successfully.")
 
                 logger.info(f"Navigating to {TARGET_PORTAL_URL}...")

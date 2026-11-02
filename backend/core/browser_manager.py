@@ -1,5 +1,6 @@
 # backend/core/browser_manager.py
 import os
+import sys
 import glob
 import time
 import socket
@@ -11,6 +12,62 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
 logger = logging.getLogger("BrowserManager")
+
+def create_robust_chrome_options(headless: Optional[bool] = None) -> Options:
+    """
+    Creates robust Chrome options supporting:
+    - Visible desktop operation (when DISPLAY exists or Windows)
+    - Headless operation (when HEADLESS=true or on Linux server without GUI)
+    - Crash prevention flags (--no-sandbox, --disable-dev-shm-usage, --disable-gpu)
+    - Anti-detection flags
+    """
+    options = Options()
+
+    # Determine headless mode
+    is_linux = sys.platform.startswith("linux")
+    has_display = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+    force_headless = os.environ.get("HEADLESS", "").lower() in ("1", "true", "yes")
+
+    if headless is True or force_headless or (is_linux and not has_display):
+        logger.info("Configuring Chrome in headless mode (no GUI display detected or HEADLESS=true)")
+        options.add_argument("--headless=new")
+        options.add_argument("--window-size=1920,1080")
+    else:
+        options.add_argument("--start-maximized")
+
+    # Essential stability and container/sandbox flags to prevent crash on launch
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--disable-notifications")
+    options.add_argument("--disable-software-rasterizer")
+    options.add_argument("--disable-extensions")
+
+    # Anti-detection parameters
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option("useAutomationExtension", False)
+
+    return options
+
+def launch_chrome_with_fallback(options: Optional[Options] = None) -> webdriver.Chrome:
+    """
+    Attempts to launch Chrome with the given options.
+    If launch fails with session not created / instance exited (e.g. on headless servers),
+    automatically attempts fallback to --headless=new.
+    """
+    opts = options or create_robust_chrome_options()
+    try:
+        return webdriver.Chrome(options=opts)
+    except Exception as launch_err:
+        err_str = str(launch_err)
+        # Check if already headless
+        arg_list = [str(a) for a in opts.arguments]
+        if ("instance exited" in err_str.lower() or "session not created" in err_str.lower()) and "--headless=new" not in arg_list:
+            logger.warning(f"Visible Chrome launch failed ({err_str}). Retrying with --headless=new fallback...")
+            fallback_opts = create_robust_chrome_options(headless=True)
+            return webdriver.Chrome(options=fallback_opts)
+        raise
 
 class BrowserManager:
     """
@@ -113,15 +170,9 @@ class BrowserManager:
                         pass
                     self._driver = None
 
-                logger.info("Launching new visible Chrome instance...")
-                chrome_options = Options()
-                chrome_options.add_argument("--start-maximized")
-                chrome_options.add_argument("--disable-notifications")
-                chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-                chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-                chrome_options.add_experimental_option("useAutomationExtension", False)
-
-                self._driver = webdriver.Chrome(options=chrome_options)
+                logger.info("Launching Chrome instance with stability options...")
+                chrome_options = create_robust_chrome_options()
+                self._driver = launch_chrome_with_fallback(chrome_options)
                 logger.info("Chrome launched successfully.")
 
             if target_url:
