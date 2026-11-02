@@ -1,5 +1,5 @@
 // src/services/replaceApi.js
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_BASE_URL || 'http://127.0.0.1:8003/api';
+const API_BASE_URL = `${import.meta.env.VITE_BASE_URL}/api` || 'http://127.0.0.1:8003/api';
 
 export const replaceApi = {
   // Get module status and active portal session
