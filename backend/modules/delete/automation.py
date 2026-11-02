@@ -19,10 +19,12 @@ from models import LogLevel, ExecutionType
 
 logger = logging.getLogger("DeleteVltdAutomation")
 
+UNLOCK_PORTAL_URL = "https://vahan.parivahan.gov.in/vltdmaker/vahan/user/retrofitment/unlocksldandcomponents.xhtml"
+
 class DeleteVltdAutomationHandler:
     """
     Dedicated automation handler for Delete / Untag / Unlock VLTD module.
-    Executes the 4-step sequence:
+    Executes the 4-step sequence on unlocksldandcomponents.xhtml:
     1. Registration number selection via select tag with label id (reg_label).
     2. Detection of 'Release VLTD From Vehicle' container and first button (j_idt112).
     3. Reason input in modal (Inputreject) and final confirmation button (j_idt122).
@@ -39,15 +41,16 @@ class DeleteVltdAutomationHandler:
 
     def ensure_delete_view(self) -> Tuple[bool, str]:
         """
-        Navigates to retrofitment portal and ensures the Delete/Release VLTD view is active.
-        If 'reg_label' is not already rendered, checks and activates the Release/Unlock radio button.
+        Navigates to the official VAHAN Unlock/Release VLTD portal page:
+        https://vahan.parivahan.gov.in/vltdmaker/vahan/user/retrofitment/unlocksldandcomponents.xhtml
+        and verifies that the vehicle registration selector (reg_label / reg_input) is active.
         """
         driver = self._get_driver()
         try:
             curr_url = driver.current_url.lower()
-            if "sldfittingdetails" not in curr_url and "retrofitment" in curr_url:
-                logger.info("Navigating to sldfittingDetails.xhtml...")
-                driver.get(TARGET_PORTAL_URL)
+            if "unlocksldandcomponents" not in curr_url:
+                logger.info(f"Navigating to Unlock VLTD portal: {UNLOCK_PORTAL_URL}...")
+                driver.get(UNLOCK_PORTAL_URL)
                 time.sleep(1.5)
                 wait_for_primefaces_ajax(driver, timeout=4.0)
 
@@ -55,40 +58,28 @@ class DeleteVltdAutomationHandler:
             has_reg = driver.execute_script("""
                 var lbl = document.getElementById('reg_label') || document.querySelector('[id$="reg_label"]');
                 var sel = document.getElementById('reg_input') || document.querySelector('select[id*="reg"]');
-                return !!((lbl && lbl.offsetParent !== null) || (sel && sel.offsetParent !== null));
+                return !!((lbl && lbl.offsetParent !== null) || (sel && sel.offsetParent !== null) || lbl || sel);
             """)
             if has_reg:
-                return True, "Delete view and registration selector are ready."
+                return True, "Unlock VLTD view and registration selector are ready."
 
-            # If not rendered, look for Release/Unlock radio button (e.g. rb:1 or text matching)
-            logger.info("Registration selector not visible yet. Checking for Release/Unlock radio button...")
-            clicked = driver.execute_script("""
-                // Check radio buttons with label containing release/unlock/delete
-                var labels = document.querySelectorAll('label[for^="rb"], .ui-radiobutton-box, label');
-                for (var i = 0; i < labels.length; i++) {
-                    var t = (labels[i].innerText || '').toLowerCase();
-                    if (t.includes('release') || t.includes('unlock') || t.includes('untag') || t.includes('delete') || t.includes('remove')) {
-                        labels[i].click();
-                        return 'clicked_label: ' + t;
+            # Fallback: check if we need to click the 'Unlock VLTD' menu item from the navigation bar
+            driver.execute_script("""
+                var links = document.querySelectorAll('a, .ui-menuitem-link');
+                for (var i = 0; i < links.length; i++) {
+                    var href = links[i].getAttribute('href') || '';
+                    var txt = (links[i].innerText || '').toLowerCase();
+                    if (href.includes('unlocksld') || (txt.includes('unlock') && txt.includes('vltd'))) {
+                        links[i].click();
+                        return true;
                     }
                 }
-                var rb1 = document.getElementById('rb:1');
-                if (rb1) {
-                    rb1.click();
-                    return 'clicked_rb1';
-                }
-                var label1 = document.querySelector('label[for="rb:1"]');
-                if (label1) {
-                    label1.click();
-                    return 'clicked_label_rb1';
-                }
-                return 'not_found';
+                return false;
             """)
-            logger.info(f"Radio action result: {clicked}")
+            time.sleep(1.5)
             wait_for_primefaces_ajax(driver, timeout=4.0)
-            time.sleep(1.0)
 
-            return True, "Delete section activated."
+            return True, "Unlock section ready."
         except Exception as e:
             logger.warning(f"Note on ensure_delete_view: {e}")
             return False, str(e)
@@ -132,7 +123,11 @@ class DeleteVltdAutomationHandler:
 
                 return results;
             """)
-            return list(dict.fromkeys(options or [])) # Unique ordered list
+            cleaned = [
+                o.strip() for o in (options or [])
+                if o and not o.strip().lower().startswith("select") and o.strip() not in ["--", "0", "None"]
+            ]
+            return list(dict.fromkeys(cleaned)) # Unique ordered list
         except Exception as e:
             logger.error(f"Failed to extract registration options: {e}")
             return []
@@ -263,6 +258,7 @@ class DeleteVltdAutomationHandler:
         Waits for the portal response and evaluates authoritative success/failure.
         """
         driver = self._get_driver()
+        clean_reg = "".join(filter(str.isalnum, reg_no or "")).upper()
         clean_reason = (reason or "").strip()
         if not clean_reason:
             clean_reason = "Untag VLTD / Fitment Removal"

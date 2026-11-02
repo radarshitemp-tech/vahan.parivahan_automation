@@ -20,6 +20,7 @@ from logger_service import execution_logger, get_root_log_content, ROOT_LOG_FILE
 from modules.registry import module_registry
 from modules.delete import delete_router
 from modules.add import add_router
+from modules.replace import replace_router, replace_alias_router
 from core.browser_manager import browser_manager
 from core.session_manager import session_manager
 
@@ -28,6 +29,8 @@ app = FastAPI(title="VAHAN VLTD Bulk Automation API", version="2.0.0")
 # Mount Modular Routers
 app.include_router(delete_router)
 app.include_router(add_router)
+app.include_router(replace_router)
+app.include_router(replace_alias_router)
 
 # Enable CORS for React frontend
 app.add_middleware(
@@ -143,8 +146,10 @@ def launch_portal_and_inspect():
     """
     Phase B: Opens visible Chrome browser to VAHAN VLTD portal.
     Checks whether login is needed or form is already rendered.
+    Overwrites previous session log with backup and initializes a fresh log file.
     """
     try:
+        execution_logger.start_new_session("portal-launch")
         inventory = selenium_worker.launch_browser_for_authentication()
         return inventory
     except Exception as e:
@@ -379,11 +384,33 @@ def get_batch_report(batch_id: str):
     }
 
 @app.get("/api/vahan/logs/unified")
-def get_unified_log_file(lines: int = Query(200, description="Max lines from root vahan_automation.log")):
+def get_unified_log_file(lines: int = Query(250, description="Max lines from root vahan_automation.log")):
     """
     Returns recent entries from the single root directory log file: vahan_automation.log.
     """
     return {
         "log_file": ROOT_LOG_FILE,
+        "session_id": execution_logger.current_session_id,
         "content": get_root_log_content(lines)
+    }
+
+@app.get("/api/vahan/logs/session-structured", response_model=List[ExecutionLogEntry])
+def get_session_structured_logs(limit: int = Query(150, description="Max entries to return")):
+    """
+    Returns active session's structured audit logs for live viewing.
+    """
+    return execution_logger.get_recent_session_logs(limit=limit)
+
+@app.post("/api/vahan/logs/new-session")
+def start_new_log_session(session_id: Optional[str] = Body(None, embed=True)):
+    """
+    Backs up previous vahan_automation.log and freshly initializes a new log file
+    along with a clean active in-memory session audit trail.
+    """
+    sid = session_id or f"SES_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    backup_path = execution_logger.start_new_session(sid)
+    return {
+        "message": "New session log file initialized.",
+        "session_id": sid,
+        "backup_file": backup_path
     }

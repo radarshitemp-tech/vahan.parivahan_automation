@@ -1,5 +1,5 @@
 // src/pages/DeletePage.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Box,
   Button,
@@ -25,19 +25,19 @@ import {
   Card,
   CardContent,
   Divider,
+  Snackbar,
 } from '@mui/material';
+import Papa from 'papaparse';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import PlaylistPlayIcon from '@mui/icons-material/PlaylistPlay';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 
 import ModuleHeader from '../components/common/ModuleHeader';
 import BrowserSessionCard from '../components/common/BrowserSessionCard';
-import ExecutionLogsViewer from '../components/common/ExecutionLogsViewer';
 import { deleteApi } from '../services/deleteApi';
 
 export default function DeletePage() {
@@ -61,6 +61,9 @@ export default function DeletePage() {
 
   // Operator Final Confirmation Modal
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+
+  // Toast Notification State
+  const [toast, setToast] = useState({ open: false, message: '', severity: 'info' });
 
   // Execution Result History
   const [historyResults, setHistoryResults] = useState([]);
@@ -198,21 +201,107 @@ export default function DeletePage() {
     }
   };
 
-  // Handle CSV file upload for batch
+  // Helper to identify Vehicle Registration column variants
+  const isRegistrationColumn = (name) => {
+    if (!name) return false;
+    const clean = String(name).toLowerCase().replace(/[^a-z0-9]/g, '');
+    const aliases = [
+      'vehicleregistrationno',
+      'vehicleregistrationnumber',
+      'vehicleregistration',
+      'vehicleregno',
+      'vehicleregnumber',
+      'registrationno',
+      'registrationnumber',
+      'registration',
+      'regno',
+      'regnno',
+      'regnum',
+      'vehicleno',
+      'vehiclenumber',
+      'rcnumber',
+      'rcno',
+    ];
+    if (aliases.includes(clean)) return true;
+    if (clean.includes('reg') && (clean.includes('no') || clean.includes('num') || clean.includes('veh') || clean.includes('rc'))) {
+      return true;
+    }
+    return false;
+  };
+
+  // Handle CSV file upload for batch - extracts 'Vehicle Registration No' column
   const handleCsvFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const text = evt.target.result;
-      const rows = text
-        .split('\n')
-        .map((r) => r.split(',')[0].replace(/["']/g, '').trim().toUpperCase())
-        .filter((r) => r && !r.includes('REGISTRATION') && r.length >= 4);
-      setBatchText(rows.join('\n'));
-      setStatusMessage(`Loaded ${rows.length} registration numbers from file: ${file.name}`);
-    };
-    reader.readAsText(file);
+
+    // Reset file input so selecting the same file again triggers onChange
+    e.target.value = '';
+
+    Papa.parse(file, {
+      skipEmptyLines: 'greedy',
+      complete: (results) => {
+        const { data } = results;
+        if (!data || data.length === 0) {
+          const err = 'The uploaded CSV file is empty.';
+          setErrorMessage(err);
+          setToast({ open: true, message: err, severity: 'error' });
+          return;
+        }
+
+        // Search the first row for the vehicle registration column
+        const headers = (data[0] || []).map((h) => String(h || '').trim());
+        let targetColIndex = -1;
+        let matchedColName = '';
+
+        for (let i = 0; i < headers.length; i++) {
+          if (isRegistrationColumn(headers[i])) {
+            targetColIndex = i;
+            matchedColName = headers[i];
+            break;
+          }
+        }
+
+        if (targetColIndex === -1) {
+          const err = `No 'Vehicle Registration No' column found in '${file.name}'. Found columns: ${headers.filter(Boolean).join(', ') || 'None'}`;
+          setErrorMessage(err);
+          setToast({
+            open: true,
+            message: `Error: Could not find 'Vehicle Registration No' column in uploaded CSV file (${file.name}).`,
+            severity: 'error',
+          });
+          return;
+        }
+
+        // Extract values from the identified registration column (rows 1 to N)
+        const extracted = [];
+        for (let r = 1; r < data.length; r++) {
+          const row = data[r];
+          if (!row || row.length <= targetColIndex) continue;
+          const val = String(row[targetColIndex] || '').trim().replace(/["']/g, '').toUpperCase();
+          if (val && val.length >= 4 && !isRegistrationColumn(val)) {
+            extracted.push(val);
+          }
+        }
+
+        if (extracted.length === 0) {
+          const warn = `Column '${matchedColName}' was found in '${file.name}', but it contains no valid registration numbers.`;
+          setErrorMessage(warn);
+          setToast({ open: true, message: warn, severity: 'warning' });
+          return;
+        }
+
+        setBatchText(extracted.join('\n'));
+        setErrorMessage(null);
+        const successMsg = `Loaded ${extracted.length} vehicle registration number(s) from column '${matchedColName}' (${file.name}).`;
+        setStatusMessage(successMsg);
+        setToast({ open: true, message: successMsg, severity: 'success' });
+      },
+      error: (err) => {
+        const errMsg = `Failed to parse CSV file: ${err.message}`;
+        setErrorMessage(errMsg);
+        setToast({ open: true, message: errMsg, severity: 'error' });
+      },
+    });
   };
 
   return (
@@ -269,7 +358,7 @@ export default function DeletePage() {
           <Grid item xs={12} md={6}>
             <div className="glass-panel" style={{ padding: '1.75rem', height: '100%' }}>
               <Typography variant="h6" sx={{ fontWeight: 700, color: '#f8fafc', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <span>Step 1: Vehicle Registration (reg_label)</span>
+                <span>Step 1: Vehicle Registration</span>
               </Typography>
 
               {/* Registration Select & Live Fetch */}
@@ -322,7 +411,7 @@ export default function DeletePage() {
 
               {/* Step 2: Reason & Unlock Trigger */}
               <Typography variant="h6" sx={{ fontWeight: 700, color: '#f8fafc', mb: 2 }}>
-                Step 2: Unlock Reason & Trigger (j_idt112)
+                Step 2: Unlock Reason & Trigger
               </Typography>
 
               <TextField
@@ -642,8 +731,28 @@ export default function DeletePage() {
         </div>
       )}
 
-      {/* Unified & Audit Logs Viewer */}
-      <ExecutionLogsViewer title="Delete Module & VAHAN Execution Logs" />
+      {/* Floating Error / Success Toast Notification */}
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={6000}
+        onClose={() => setToast((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setToast((prev) => ({ ...prev, open: false }))}
+          severity={toast.severity}
+          variant="filled"
+          sx={{
+            width: '100%',
+            fontWeight: 700,
+            fontSize: '0.9rem',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+          }}
+        >
+          {toast.message}
+        </Alert>
+      </Snackbar>
     </div>
   );
 }

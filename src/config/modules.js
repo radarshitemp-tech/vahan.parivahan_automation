@@ -7,6 +7,7 @@
 export const MODULE_IDS = {
   ADD_VLTD: 'add_vltd',
   DELETE_VLTD: 'delete_vltd',
+  REPLACE_VLTD: 'replace_vltd',
 };
 
 export const MODULES = [
@@ -50,6 +51,27 @@ export const MODULES = [
       'Interactive Reason Input Modal (field: Inputreject)',
       'Operator Final Approval Dialog before j_idt122 submission',
       'Authoritative Portal Result Verification & Batch Mode',
+    ],
+  },
+  {
+    id: MODULE_IDS.REPLACE_VLTD,
+    name: 'Replace Device / Change ICCID',
+    shortTitle: 'Replace / Change VLTD',
+    badge: 'Replace / Change',
+    description: 'Replace VLTD units (with same or different maker) or update device ICCID on Parivahan VAHAN portal.',
+    route: '/modules/untag',
+    aliasRoute: '/replace',
+    apiPrefix: '/api/modules/untag',
+    color: '#10b981',
+    gradient: 'linear-gradient(135deg, #10b981 0%, #14b8a6 100%)',
+    icon: 'sync_alt',
+    enabled: true,
+    features: [
+      'Untag VLTD Reason Selector (select_optn)',
+      'Support for Same Maker, Different Maker, and Change ICCID',
+      'Dynamic Fitment Form Expansion & Field Scraping',
+      'Get Device Details & AJAX Data Verification',
+      'Automated Fitment Replacement & Save Submission',
     ],
   },
 ];

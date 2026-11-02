@@ -12,6 +12,7 @@ from .service import (
     DeleteBatchRequest,
     DeleteBatchResponse
 )
+from .automation import delete_automation, UNLOCK_PORTAL_URL
 
 router = APIRouter(prefix="/api/modules/delete", tags=["Delete / Unlock VLTD Module"])
 
@@ -22,11 +23,26 @@ def get_delete_module_status():
     return {
         "module": "delete_vltd",
         "name": "Delete / Unlock VLTD",
+        "portal_url": UNLOCK_PORTAL_URL,
         "session": info,
         "is_ready": info.get("is_authenticated", False)
     }
 
+@router.post("/navigate")
+def navigate_to_unlock_portal():
+    """
+    Explicitly redirects the active browser session to the official Unlock VLTD portal URL:
+    https://vahan.parivahan.gov.in/vltdmaker/vahan/user/retrofitment/unlocksldandcomponents.xhtml
+    """
+    try:
+        ok, msg = delete_automation.ensure_delete_view()
+        return {"success": ok, "message": msg, "target_url": UNLOCK_PORTAL_URL}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/registrations", response_model=List[str])
+@router.get("/options", response_model=List[str])
 def get_portal_registrations():
     """
     Extracts currently available vehicle registration numbers from the portal
@@ -63,6 +79,7 @@ def open_unlock_reason_modal():
         raise HTTPException(status_code=500, detail=f"Failed to open unlock modal: {str(e)}")
 
 @router.post("/confirm-unlock", response_model=DeleteConfirmResponse)
+@router.post("/confirm", response_model=DeleteConfirmResponse)
 def confirm_and_submit_unlock(payload: DeleteConfirmRequest):
     """
     Populates reason into 'Inputreject' and clicks the final confirmation button 'j_idt122'.
@@ -75,6 +92,7 @@ def confirm_and_submit_unlock(payload: DeleteConfirmRequest):
         raise HTTPException(status_code=500, detail=f"Unlock execution failed: {str(e)}")
 
 @router.post("/batch-unlock", response_model=DeleteBatchResponse)
+@router.post("/batch", response_model=DeleteBatchResponse)
 def execute_batch_unlock(payload: DeleteBatchRequest):
     """
     Executes sequential untag/unlock on a batch of vehicle registration numbers.

@@ -58,10 +58,38 @@ class DeleteVltdService:
     """
 
     def get_available_registrations(self) -> List[str]:
-        return delete_automation.extract_registration_options()
+        options = delete_automation.extract_registration_options()
+        execution_logger.log(
+            level=LogLevel.INFO,
+            execution_type=ExecutionType.FORM_INTERACTION,
+            run_id=execution_logger.current_session_id,
+            stage="FETCH_REGISTRATIONS",
+            action="READ_DROPDOWN_OPTIONS",
+            result="OK",
+            message=f"Extracted {len(options)} vehicle registration(s) from portal dropdown."
+        )
+        return options
 
     def select_registration(self, reg_no: str) -> DeleteSelectResponse:
+        execution_logger.log(
+            level=LogLevel.INFO,
+            execution_type=ExecutionType.FORM_INTERACTION,
+            run_id=execution_logger.current_session_id,
+            stage="SELECT_VEHICLE",
+            action="SELECT_REG_NO",
+            result="IN_PROGRESS",
+            message=f"Selecting vehicle registration '{reg_no}' on portal (reg_label)..."
+        )
         ok, msg, veh_info = delete_automation.select_registration_number(reg_no)
+        execution_logger.log(
+            level=LogLevel.INFO if ok else LogLevel.ERROR,
+            execution_type=ExecutionType.FORM_INTERACTION,
+            run_id=execution_logger.current_session_id,
+            stage="SELECT_VEHICLE",
+            action="VERIFY_RELEASE_SECTION",
+            result="OK" if ok else "FAIL",
+            message=msg
+        )
         return DeleteSelectResponse(
             success=ok,
             registration_number=reg_no,
@@ -71,7 +99,25 @@ class DeleteVltdService:
         )
 
     def open_reason_modal(self) -> DeleteOpenModalResponse:
+        execution_logger.log(
+            level=LogLevel.INFO,
+            execution_type=ExecutionType.FORM_INTERACTION,
+            run_id=execution_logger.current_session_id,
+            stage="OPEN_MODAL",
+            action="CLICK_UNLOCK_BUTTON",
+            result="IN_PROGRESS",
+            message="Clicking first Unlock VLTD button (j_idt112) to reveal reason modal..."
+        )
         ok, msg = delete_automation.open_unlock_modal()
+        execution_logger.log(
+            level=LogLevel.INFO if ok else LogLevel.ERROR,
+            execution_type=ExecutionType.FORM_INTERACTION,
+            run_id=execution_logger.current_session_id,
+            stage="OPEN_MODAL",
+            action="VERIFY_REASON_MODAL",
+            result="OK" if ok else "FAIL",
+            message=msg
+        )
         return DeleteOpenModalResponse(
             success=ok,
             message=msg,

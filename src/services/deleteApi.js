@@ -13,6 +13,16 @@ export const deleteApi = {
     }
   },
 
+  // Explicitly navigate browser to Unlock VLTD portal URL
+  async navigateToPortal() {
+    const res = await fetch(`${API_BASE_URL}/modules/delete/navigate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) throw new Error(`Navigation failed: ${res.statusText}`);
+    return await res.json();
+  },
+
   // Step 1: Fetch available vehicle registration numbers from portal dropdown (select#reg_input / label#reg_label)
   async getRegistrations() {
     const res = await fetch(`${API_BASE_URL}/modules/delete/registrations`);

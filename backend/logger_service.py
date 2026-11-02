@@ -11,8 +11,52 @@ KOLKATA_TZ = timezone(timedelta(hours=5, minutes=30))
 # Single unified root log file in project root directory
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 ROOT_LOG_FILE = os.path.join(ROOT_DIR, "vahan_automation.log")
+BACKUP_DIR = os.path.join(ROOT_DIR, "logs", "backups")
 
 _log_lock = threading.Lock()
+
+def get_clean_timestamp() -> str:
+    """Returns concise, easily readable timestamp: YYYY-MM-DD HH:MM:SS."""
+    return datetime.now(KOLKATA_TZ).strftime("%Y-%m-%d %H:%M:%S")
+
+def backup_and_reset_root_log(session_id: Optional[str] = None) -> str:
+    """
+    Backs up previous vahan_automation.log and freshly initializes a new log file
+    for the current session.
+    """
+    with _log_lock:
+        now_str = datetime.now(KOLKATA_TZ).strftime("%Y%m%d_%H%M%S")
+        backup_path = None
+        if os.path.exists(ROOT_LOG_FILE) and os.path.getsize(ROOT_LOG_FILE) > 0:
+            try:
+                os.makedirs(BACKUP_DIR, exist_ok=True)
+                backup_name = f"vahan_automation_backup_{now_str}.log"
+                backup_path = os.path.join(BACKUP_DIR, backup_name)
+                # Copy current log to backup
+                with open(ROOT_LOG_FILE, "r", encoding="utf-8", errors="replace") as src:
+                    content = src.read()
+                with open(backup_path, "w", encoding="utf-8") as dst:
+                    dst.write(content)
+                # Also maintain a latest backup copy in root directory
+                latest_backup = os.path.join(ROOT_DIR, "vahan_automation_prev.log")
+                with open(latest_backup, "w", encoding="utf-8") as lb:
+                    lb.write(content)
+            except Exception as e:
+                print(f"Warning: Failed to create log backup: {e}")
+
+        # Overwrite root log file with fresh session initialization header
+        try:
+            sid = session_id or f"SES_{now_str}"
+            init_time = get_clean_timestamp()
+            with open(ROOT_LOG_FILE, "w", encoding="utf-8") as f:
+                f.write(f"[{init_time}] [INFO] [OP: SESSION_INIT] === New VAHAN Automation Session Started (Session: {sid}) ===\n")
+                if backup_path:
+                    f.write(f"[{init_time}] [INFO] [OP: LOG_BACKUP] Previous session log backed up to: {os.path.basename(backup_path)}\n")
+                f.flush()
+        except Exception as e:
+            print(f"Warning: Failed to initialize new session log file: {e}")
+
+        return backup_path or ""
 
 def append_to_root_log(log_line: str):
     """
@@ -38,10 +82,6 @@ def get_root_log_content(limit_lines: int = 300) -> str:
                 return "".join(lines[-limit_lines:])
     except Exception as e:
         return f"Error reading root log file: {str(e)}"
-
-def get_clean_timestamp() -> str:
-    """Returns concise, easily readable timestamp: YYYY-MM-DD HH:MM:SS."""
-    return datetime.now(KOLKATA_TZ).strftime("%Y-%m-%d %H:%M:%S")
 
 def simplify_operation_keyword(stage: Optional[str], action: Optional[str]) -> str:
     """
@@ -157,6 +197,24 @@ class DurableExecutionLogger:
     def _init_logger(self):
         # run_id -> list of ExecutionLogEntry (in-memory for active UI session queries)
         self._memory_logs: Dict[str, List[ExecutionLogEntry]] = {}
+        self.current_session_id: str = f"SES_{datetime.now(KOLKATA_TZ).strftime('%Y%m%d_%H%M%S')}"
+
+    def start_new_session(self, session_id: Optional[str] = None) -> str:
+        """
+        Backs up previous root log and initiates a fresh session log.
+        """
+        backup_file = backup_and_reset_root_log(session_id)
+        self.current_session_id = session_id or f"SES_{datetime.now(KOLKATA_TZ).strftime('%Y%m%d_%H%M%S')}"
+        self._memory_logs[self.current_session_id] = []
+        return backup_file
+
+    def get_recent_session_logs(self, limit: int = 150) -> List[ExecutionLogEntry]:
+        """Returns structured audit log entries recorded across recent transactions for live streaming."""
+        all_entries = []
+        for entries in self._memory_logs.values():
+            all_entries.extend(entries)
+        all_entries.sort(key=lambda x: x.timestamp)
+        return all_entries[-limit:]
 
     def get_timestamp(self) -> str:
         """Returns ISO 8601 timestamp in Asia/Kolkata timezone with explicit offset (+05:30)."""

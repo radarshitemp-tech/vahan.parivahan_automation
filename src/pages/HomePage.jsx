@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
+import SyncAltIcon from '@mui/icons-material/SyncAlt';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import BrowserSessionCard from '../components/common/BrowserSessionCard';
@@ -85,7 +86,7 @@ export default function HomePage() {
 
         <Grid container spacing={3}>
           {MODULES.map((module) => (
-            <Grid item xs={12} sm={6} md={6} key={module.id}>
+            <Grid item xs={12} sm={6} md={4} key={module.id}>
               <Card
                 onClick={() => navigate(module.route)}
                 sx={{
@@ -125,6 +126,8 @@ export default function HomePage() {
                     >
                       {module.id === 'add_vltd' ? (
                         <AddCircleOutlineIcon sx={{ fontSize: 28 }} />
+                      ) : module.id === 'replace_vltd' ? (
+                        <SyncAltIcon sx={{ fontSize: 28 }} />
                       ) : (
                         <LockOpenIcon sx={{ fontSize: 28 }} />
                       )}

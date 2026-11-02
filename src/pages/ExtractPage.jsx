@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { useCsv } from '../context/CsvContext';
 import { useVahanAutomation } from '../context/VahanAutomationContext';
-import { vahanApi } from '../services/vahanApi';
 import {
   Box,
   Typography,
@@ -50,9 +49,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ModuleHeader from '../components/common/ModuleHeader';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 
 export default function ExtractPage() {
@@ -141,11 +138,6 @@ export default function ExtractPage() {
   const [showInventoryReview, setShowInventoryReview] = useState(false);
   const [showMappingConfig, setShowMappingConfig] = useState(false);
   const [showExecutionReport, setShowExecutionReport] = useState(false);
-  const [showLogsModal, setShowLogsModal] = useState(false);
-  const [logFilterLevel, setLogFilterLevel] = useState('ALL');
-  const [showUnifiedRootLog, setShowUnifiedRootLog] = useState(false);
-  const [unifiedRootLogText, setUnifiedRootLogText] = useState('');
-  const [unifiedRootLogPath, setUnifiedRootLogPath] = useState('');
   const [onDemandAnchorEl, setOnDemandAnchorEl] = useState(null);
   const handleOpenOnDemand = (event) => setOnDemandAnchorEl(event.currentTarget);
   const handleCloseOnDemand = () => setOnDemandAnchorEl(null);
@@ -381,30 +373,6 @@ export default function ExtractPage() {
       setErrorDialogOpen(true);
     }
   }, [vahanBatch, resumeBatchProcessing]);
-
-  // Open Structured Audit Logs Modal
-  const handleRefreshUnifiedRootLog = useCallback(async () => {
-    try {
-      const data = await fetchUnifiedLogs(300);
-      setUnifiedRootLogText(data.content || 'Root log file is currently empty.');
-      setUnifiedRootLogPath(data.log_file || 'vahan_automation.log');
-    } catch (err) {
-      setUnifiedRootLogText(`Failed to load root log file: ${err.message}`);
-    }
-  }, [fetchUnifiedLogs]);
-
-  // Open Structured Audit Logs Modal
-  const handleOpenLogsModal = useCallback(async () => {
-    try {
-      if (vahanBatch) {
-        await fetchExecutionLogs(logFilterLevel !== 'ALL' ? logFilterLevel : undefined);
-      }
-      await handleRefreshUnifiedRootLog();
-      setShowLogsModal(true);
-    } catch (err) {
-      console.warn('Could not load logs:', err);
-    }
-  }, [vahanBatch, fetchExecutionLogs, logFilterLevel, handleRefreshUnifiedRootLog]);
 
   // Controlled Stop Request
   const handleStopProcessing = useCallback(async () => {
@@ -1396,14 +1364,6 @@ export default function ExtractPage() {
               >
                 {showExecutionReport ? 'Hide Execution Report' : 'Execution Report'}
               </MenuItem>
-              <MenuItem
-                onClick={() => {
-                  handleCloseOnDemand();
-                  handleOpenLogsModal();
-                }}
-              >
-                Audit Logs ({executionLogs.length || vahanBatch.logs?.length || 0})
-              </MenuItem>
             </Menu>
 
             {/* Controlled Stop Processing (Visible only when actively processing or waiting) */}
@@ -1992,214 +1952,6 @@ export default function ExtractPage() {
             sx={{ color: '#a5b4fc', borderColor: '#6366f1' }}
           >
             Close
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Structured Execution Audit Logs Modal */}
-      <Dialog
-        open={showLogsModal}
-        onClose={() => setShowLogsModal(false)}
-        maxWidth="lg"
-        fullWidth
-        PaperProps={{
-          sx: {
-            backgroundColor: '#0f172a',
-            color: '#fff',
-            borderRadius: '16px',
-            border: '1px solid rgba(56, 189, 248, 0.3)',
-            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.9)',
-            maxHeight: '85vh'
-          },
-        }}
-      >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <ReceiptLongIcon sx={{ color: '#38bdf8', fontSize: 28 }} />
-            <div>
-              <Typography variant="h6" sx={{ fontWeight: 800, color: '#fff' }}>
-                Execution Audit Trail & Transaction Logs
-              </Typography>
-              <Typography variant="caption" sx={{ color: '#94a3b8' }}>
-                Timestamped in Asia/Kolkata (IST +05:30) • Batch: <code>{vahanBatch?.batch_id?.slice(0, 8) || '-'}</code>
-              </Typography>
-            </div>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {['ALL', 'INFO', 'WARNING', 'ERROR'].map((lvl) => (
-              <Chip
-                key={lvl}
-                label={lvl}
-                size="small"
-                clickable
-                onClick={async () => {
-                  setLogFilterLevel(lvl);
-                  if (vahanBatch) {
-                    const logs = await vahanApi.getExecutionLogs(vahanBatch.batch_id, {
-                      level: lvl !== 'ALL' ? lvl : undefined
-                    });
-                    setExecutionLogs(logs);
-                  }
-                }}
-                sx={{
-                  backgroundColor: logFilterLevel === lvl ? 'rgba(56, 189, 248, 0.3)' : 'rgba(255, 255, 255, 0.05)',
-                  color: logFilterLevel === lvl ? '#38bdf8' : '#94a3b8',
-                  fontWeight: 700,
-                  border: logFilterLevel === lvl ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)'
-                }}
-              />
-            ))}
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={handleOpenLogsModal}
-              sx={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.4)', textTransform: 'none', ml: 1 }}
-            >
-              Refresh
-            </Button>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', mt: 1.5 }}>
-            <Button
-              size="small"
-              variant={!showUnifiedRootLog ? "contained" : "outlined"}
-              onClick={() => setShowUnifiedRootLog(false)}
-              sx={{ textTransform: 'none', fontWeight: 700, borderRadius: '8px' }}
-            >
-              Structured Audit Trail
-            </Button>
-            <Button
-              size="small"
-              variant={showUnifiedRootLog ? "contained" : "outlined"}
-              onClick={async () => {
-                setShowUnifiedRootLog(true);
-                await handleRefreshUnifiedRootLog();
-              }}
-              sx={{ textTransform: 'none', fontWeight: 700, borderRadius: '8px', color: '#38bdf8', borderColor: '#38bdf8' }}
-            >
-              Unified Root Log File (vahan_automation.log)
-            </Button>
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ p: 2 }}>
-          {showUnifiedRootLog ? (
-            <div style={{ maxHeight: '55vh', overflowY: 'auto', background: '#020617', padding: '1rem', borderRadius: '10px', border: '1px solid #1e293b' }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                <Typography variant="caption" sx={{ color: '#94a3b8', fontFamily: 'monospace' }}>
-                  Target File: <strong>{unifiedRootLogPath}</strong>
-                </Typography>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={() => {
-                    navigator.clipboard.writeText(unifiedRootLogText);
-                    setToastMessage('Copied root log file content to clipboard!');
-                    setToastOpen(true);
-                  }}
-                  sx={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.4)', textTransform: 'none' }}
-                >
-                  Copy Log Content
-                </Button>
-              </Box>
-              <pre style={{ margin: 0, fontFamily: 'Consolas, monospace', fontSize: '0.8rem', color: '#e2e8f0', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                {unifiedRootLogText}
-              </pre>
-            </div>
-          ) : (
-            <div className="data-table-wrapper" style={{ maxHeight: '55vh', overflowY: 'auto' }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '18%' }}>Timestamp (IST)</th>
-                    <th style={{ width: '8%' }}>Level</th>
-                    <th style={{ width: '15%' }}>Execution Type</th>
-                    <th style={{ width: '10%' }}>Row / Txn</th>
-                    <th style={{ width: '16%' }}>Stage & Action</th>
-                    <th style={{ width: '8%' }}>Status</th>
-                    <th style={{ width: '25%' }}>Message</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {executionLogs.length > 0 ? (
-                    executionLogs.map((log, idx) => (
-                      <tr key={idx}>
-                        <td style={{ fontSize: '0.78rem', color: '#cbd5e1', fontFamily: 'monospace' }}>
-                          {log.timestamp}
-                        </td>
-                        <td>
-                          <span
-                            className="tag-pill"
-                            style={{
-                              background:
-                                log.level === 'ERROR' || log.level === 'CRITICAL'
-                                  ? 'rgba(239, 68, 68, 0.2)'
-                                  : log.level === 'WARNING'
-                                    ? 'rgba(245, 158, 11, 0.2)'
-                                    : 'rgba(16, 185, 129, 0.2)',
-                              color:
-                                log.level === 'ERROR' || log.level === 'CRITICAL'
-                                  ? '#f87171'
-                                  : log.level === 'WARNING'
-                                    ? '#fbbf24'
-                                    : '#34d399',
-                              fontWeight: 700,
-                              fontSize: '0.72rem'
-                            }}
-                          >
-                            {log.level}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: '0.8rem', color: '#93c5fd', fontWeight: 600 }}>
-                          {log.execution_type}
-                        </td>
-                        <td style={{ fontSize: '0.78rem', color: '#94a3b8', fontFamily: 'monospace' }}>
-                          {log.csv_row ? `Row ${log.csv_row}` : '-'}{log.transaction_id ? ` (${log.transaction_id.slice(-6)})` : ''}
-                        </td>
-                        <td style={{ fontSize: '0.8rem', color: '#e2e8f0' }}>
-                          <div style={{ fontWeight: 600 }}>{log.stage}</div>
-                          <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{log.action}</div>
-                        </td>
-                        <td>
-                          <span
-                            style={{
-                              fontWeight: 700,
-                              fontSize: '0.75rem',
-                              color: log.result === 'SUCCESS' ? '#34d399' : log.result === 'FAILED' ? '#f87171' : '#fde68a'
-                            }}
-                          >
-                            {log.result}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: '0.82rem', color: '#cbd5e1' }}>
-                          {log.message}
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
-                        No audit log entries found for this filter.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ p: 2, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
-          <Button
-            onClick={() => setShowLogsModal(false)}
-            variant="contained"
-            sx={{
-              background: '#38bdf8',
-              color: '#0f172a',
-              fontWeight: 700,
-              borderRadius: '8px',
-              textTransform: 'none',
-              '&:hover': { background: '#0284c7', color: '#fff' }
-            }}
-          >
-            Close Logs
           </Button>
         </DialogActions>
       </Dialog>

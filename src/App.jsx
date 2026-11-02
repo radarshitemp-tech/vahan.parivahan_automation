@@ -1,5 +1,5 @@
 import React from 'react';
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { CsvProvider } from './context/CsvContext';
 import { VahanAutomationProvider } from './context/VahanAutomationContext';
@@ -7,7 +7,7 @@ import Navbar from './components/Navbar';
 import HomePage from './pages/HomePage';
 import ExtractPage from './pages/ExtractPage';
 import DeletePage from './pages/DeletePage';
-import LogsPage from './pages/LogsPage';
+import ReplacePage from './pages/UntagPage';
 
 const darkTheme = createTheme({
   palette: {
@@ -67,12 +67,14 @@ const darkTheme = createTheme({
 });
 
 export default function App() {
+  const basename = import.meta.env.BASE_URL;
+
   return (
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
       <CsvProvider>
         <VahanAutomationProvider>
-          <Router>
+          <Router basename={basename}>
             <div className="app-layout">
               <Navbar />
               <main className="main-content">
@@ -84,12 +86,13 @@ export default function App() {
                   <Route path="/modules/delete" element={<DeletePage />} />
                   <Route path="/delete" element={<DeletePage />} />
                   <Route path="/unlock" element={<DeletePage />} />
-                  <Route path="/logs" element={<LogsPage />} />
+                  <Route path="/modules/untag" element={<ReplacePage />} />
+                  <Route path="/replace" element={<ReplacePage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </main>
               <footer className="app-footer">
-                <p>ONE SOL • High-Performance CSV Ingestion & Extraction Platform</p>
+                <p>Vahaan automation</p>
               </footer>
             </div>
           </Router>

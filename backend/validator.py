@@ -147,7 +147,7 @@ HEADER_ALIASES = {
 }
 
 def normalize_header(header: str) -> str:
-    cleaned = header.strip().lower().replace("-", "_").replace("  ", " ")
+    cleaned = header.strip().lstrip('\ufeff').lower().replace("-", "_").replace("  ", " ")
     cleaned = re.sub(r'[\.\:\-_]+$', '', cleaned).strip()
     return HEADER_ALIASES.get(cleaned, header.strip())
 

@@ -43,13 +43,38 @@ export const commonApi = {
   },
 
   // Fetch unified root audit log file (vahan_automation.log)
-  async getUnifiedLogs(lines = 200) {
+  async getUnifiedLogs(lines = 250) {
     try {
       const res = await fetch(`${API_BASE_URL}/vahan/logs/unified?lines=${lines}`);
       if (!res.ok) return { log_file: '', content: '' };
       return await res.json();
     } catch {
       return { log_file: '', content: '' };
+    }
+  },
+
+  // Fetch structured audit logs for the current active session
+  async getSessionStructuredLogs(limit = 150) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/vahan/logs/session-structured?limit=${limit}`);
+      if (!res.ok) return [];
+      return await res.json();
+    } catch {
+      return [];
+    }
+  },
+
+  // Start a fresh session log (overwriting current log and archiving previous session to backup)
+  async startNewLogSession(sessionId = null) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/vahan/logs/new-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId }),
+      });
+      return await res.json();
+    } catch (e) {
+      return { error: e.message };
     }
   },
 };

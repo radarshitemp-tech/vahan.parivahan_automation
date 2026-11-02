@@ -72,3 +72,20 @@ module_registry.register(ModuleDefinition(
     required_fields=["Vehicle Registration Number"]
 ))
 
+module_registry.register(ModuleDefinition(
+    module_id="replace_vltd",
+    name="Replace Device / Change ICCID",
+    short_title="Replace / Change VLTD",
+    description="Replace VLTD device (same or different maker) or change ICCID on Parivahan VAHAN portal.",
+    frontend_route="/modules/untag",
+    api_prefix="/api/modules/untag",
+    icon="sync_alt",
+    badge="Replace / Change",
+    is_enabled=True,
+    required_fields=[
+        "Reason / Action", "VLTD Maker", "VLTD Model",
+        "VLTD serial Number", "IMEI Number", "Registration Type"
+    ]
+))
+
+

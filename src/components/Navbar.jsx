@@ -10,7 +10,7 @@ import TableChartIcon from '@mui/icons-material/TableChart';
 import HomeIcon from '@mui/icons-material/Home';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
-import ArticleIcon from '@mui/icons-material/Article';
+import SyncAltIcon from '@mui/icons-material/SyncAlt';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 
 export default function Navbar() {
@@ -55,11 +55,11 @@ export default function Navbar() {
         </NavLink>
 
         <NavLink
-          to="/logs"
+          to="/modules/untag"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
-          <ArticleIcon fontSize="small" />
-          <span>Logs</span>
+          <SyncAltIcon fontSize="small" />
+          <span>Untag VLTD</span>
         </NavLink>
       </div>
 
