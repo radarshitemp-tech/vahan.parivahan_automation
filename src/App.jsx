@@ -1,11 +1,13 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { CsvProvider } from './context/CsvContext';
 import { VahanAutomationProvider } from './context/VahanAutomationContext';
 import Navbar from './components/Navbar';
 import HomePage from './pages/HomePage';
 import ExtractPage from './pages/ExtractPage';
+import DeletePage from './pages/DeletePage';
+import LogsPage from './pages/LogsPage';
 
 const darkTheme = createTheme({
   palette: {
@@ -76,7 +78,13 @@ export default function App() {
               <main className="main-content">
                 <Routes>
                   <Route path="/" element={<HomePage />} />
+                  <Route path="/dashboard" element={<HomePage />} />
+                  <Route path="/modules/add" element={<ExtractPage />} />
                   <Route path="/extract" element={<ExtractPage />} />
+                  <Route path="/modules/delete" element={<DeletePage />} />
+                  <Route path="/delete" element={<DeletePage />} />
+                  <Route path="/unlock" element={<DeletePage />} />
+                  <Route path="/logs" element={<LogsPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </main>

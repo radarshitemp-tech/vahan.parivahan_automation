@@ -128,6 +128,22 @@ HEADER_ALIASES = {
     "rc number": "Vehicle Registration Number",
     "reg_no": "Vehicle Registration Number",
     "reg no": "Vehicle Registration Number",
+    "registration_number": "Vehicle Registration Number",
+    "registration number": "Vehicle Registration Number",
+    "reg_num": "Vehicle Registration Number",
+    "reg num": "Vehicle Registration Number",
+    "registration": "Vehicle Registration Number",
+
+    # Delete / Unlock module: Reason aliases
+    "reason": "Reason",
+    "rejection_reason": "Reason",
+    "unlock_reason": "Reason",
+    "reject_reason": "Reason",
+    "remarks": "Reason",
+    "remark": "Reason",
+    "comments": "Reason",
+    "comment": "Reason",
+    "notes": "Reason",
 }
 
 def normalize_header(header: str) -> str:
@@ -159,9 +175,12 @@ def validate_imei(imei: str) -> bool:
     clean_imei = str(imei).strip()
     return bool(re.match(r"^\d{15}$", clean_imei))
 
-def parse_and_validate_csv(csv_content: str) -> Tuple[List[CsvRecord], List[ValidationError], List[str]]:
+def parse_and_validate_csv(csv_content: str, module_type: str = "add_vltd") -> Tuple[List[CsvRecord], List[ValidationError], List[str]]:
     """
     Parses CSV text strictly preserving leading zeros and validates columns and rows.
+    Supports modular validation:
+    - 'add_vltd': Validates 11 retrofitment columns (Maker, Model, Serial, Provider, IMEI, etc.)
+    - 'delete_vltd': Validates 'Vehicle Registration Number' and optional 'Reason'.
     Returns (records, all_errors, detected_headers).
     """
     f = io.StringIO(csv_content)
@@ -187,7 +206,77 @@ def parse_and_validate_csv(csv_content: str) -> Tuple[List[CsvRecord], List[Vali
     for idx, norm_h in enumerate(normalized_headers):
         header_map[norm_h] = idx
 
-    # Check for required headers: either standard "ID" + CORE_REQUIRED_COLUMNS
+    # Module-specific validation branches
+    if module_type == "delete_vltd":
+        if "Vehicle Registration Number" not in header_map:
+            raise ValueError(
+                "Missing required CSV column for Delete module: 'Vehicle Registration Number' "
+                "(accepted aliases: registration_number, reg_no, vehicle_no)."
+            )
+
+        records: List[CsvRecord] = []
+        all_errors: List[ValidationError] = []
+        seen_regs: Dict[str, int] = {}
+
+        for row_idx, row in enumerate(reader, start=2):
+            if not row or all(c.strip() == "" for c in row):
+                continue
+
+            raw_dict: Dict[str, str] = {}
+            for norm_h, col_idx in header_map.items():
+                val = row[col_idx] if col_idx < len(row) else ""
+                raw_dict[norm_h] = clean_csv_value(val)
+
+            reg_no = raw_dict.get("Vehicle Registration Number", "").strip().upper()
+            record_id = raw_dict.get("ID", "") or reg_no or f"ROW-{row_idx:04d}"
+            reason = raw_dict.get("Reason", "").strip() or "Untag VLTD / Fitment Removal"
+
+            row_errors: List[ValidationError] = []
+
+            if not reg_no:
+                row_errors.append(ValidationError(
+                    row_number=row_idx,
+                    source_id=record_id,
+                    column="Vehicle Registration Number",
+                    error_message="Missing Vehicle Registration Number."
+                ))
+            elif len(re.sub(r'[^A-Za-z0-9]', '', reg_no)) < 4:
+                row_errors.append(ValidationError(
+                    row_number=row_idx,
+                    source_id=record_id,
+                    column="Vehicle Registration Number",
+                    error_message=f"Invalid vehicle registration number format: '{reg_no}'."
+                ))
+            elif reg_no in seen_regs:
+                row_errors.append(ValidationError(
+                    row_number=row_idx,
+                    source_id=record_id,
+                    column="Vehicle Registration Number",
+                    error_message=f"Duplicate registration number '{reg_no}' (first seen on row {seen_regs[reg_no]}).",
+                    severity="warning"
+                ))
+            else:
+                seen_regs[reg_no] = row_idx
+
+            has_fatal = any(e.severity == "error" for e in row_errors)
+            status = RecordStatus.INVALID if has_fatal else RecordStatus.READY
+
+            record = CsvRecord(
+                row_number=row_idx,
+                id=record_id,
+                vehicle_registration_number=reg_no,
+                reason=reason,
+                raw_data=raw_dict,
+                status=status,
+                transaction_state=TransactionState.READY if status == RecordStatus.READY else TransactionState.PENDING,
+                validation_errors=row_errors
+            )
+            records.append(record)
+            all_errors.extend(row_errors)
+
+        return records, all_errors, normalized_headers
+
+    # Standard Add Module Validation
     required_check = ["ID"] + CORE_REQUIRED_COLUMNS
     missing_headers = [req for req in required_check if req not in header_map]
     if missing_headers:

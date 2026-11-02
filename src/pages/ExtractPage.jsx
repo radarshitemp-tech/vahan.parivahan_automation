@@ -48,6 +48,7 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import SaveIcon from '@mui/icons-material/Save';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import ModuleHeader from '../components/common/ModuleHeader';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -524,6 +525,15 @@ export default function ExtractPage() {
 
   return (
     <div className="fade-in">
+      {/* Central Module Navigation Header */}
+      <ModuleHeader
+        currentModuleId="add_vltd"
+        title="Add / Fitment VLTD Module"
+        badge="Fitment Details"
+        description="Upload CSV data, inspect VAHAN retrofitment forms, configure field mappings, and execute bulk device fitment."
+        color="#6366f1"
+      />
+
       {/* Page Header */}
       <div className="extract-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div>

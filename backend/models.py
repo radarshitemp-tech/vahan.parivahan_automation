@@ -2,6 +2,10 @@ from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 from enum import Enum
 
+class ModuleType(str, Enum):
+    ADD_VLTD = "add_vltd"
+    DELETE_VLTD = "delete_vltd"
+
 class BatchState(str, Enum):
     IDLE = "IDLE"
     UPLOADING = "UPLOADING"
@@ -30,6 +34,12 @@ class TransactionState(str, Enum):
     AWAITING_FINAL_CONFIRMATION = "AWAITING_FINAL_CONFIRMATION"
     SUBMITTING = "SUBMITTING"
     VERIFYING_RESULT = "VERIFYING_RESULT"
+    # Delete / Unlock VLTD Flow States
+    SELECTING_REGISTRATION_NUMBER = "SELECTING_REGISTRATION_NUMBER"
+    AWAITING_RELEASE_DIV = "AWAITING_RELEASE_DIV"
+    CLICKING_UNLOCK_BUTTON = "CLICKING_UNLOCK_BUTTON"
+    FILLING_REASON_MODAL = "FILLING_REASON_MODAL"
+    SUBMITTING_UNLOCK = "SUBMITTING_UNLOCK"
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
     SKIPPED = "SKIPPED"
@@ -91,21 +101,22 @@ class ValidationError(BaseModel):
 class CsvRecord(BaseModel):
     row_number: int
     id: str
-    # 11 Mapped CSV Columns
-    vltd_maker: str
-    vltd_model: str
-    vltd_serial_number: str
-    provider: str
+    # 11 Mapped CSV Columns (Defaults provided so delete/other modules can populate subset)
+    vltd_maker: Optional[str] = ""
+    vltd_model: Optional[str] = ""
+    vltd_serial_number: Optional[str] = ""
+    provider: Optional[str] = ""
     service_provider: Optional[str] = None
-    imei_number: str
+    imei_number: Optional[str] = ""
     imei: Optional[str] = None
     icc_id: Optional[str] = None
-    registration_type: str
+    registration_type: Optional[str] = ""
     chassis_no: Optional[str] = None
     engine_no: Optional[str] = None
     vehicle_state: Optional[str] = None
     rto: Optional[str] = None
     vehicle_registration_number: Optional[str] = None
+    reason: Optional[str] = None
 
     raw_data: Dict[str, str] = Field(default_factory=dict)
     status: RecordStatus = RecordStatus.PENDING
@@ -192,12 +203,15 @@ class DryRunResult(BaseModel):
 
 class BatchStartRequest(BaseModel):
     mode: str = "batch" # "single" | "batch"
+    module_type: Optional[str] = "add_vltd" # "add_vltd" | "delete_vltd"
+    default_reason: Optional[str] = "Untag VLTD / Fitment Removal"
     selected_row_numbers: Optional[List[int]] = None
     selected_record_ids: Optional[List[str]] = None
 
 class BatchResponse(BaseModel):
     batch_id: str
     file_name: str
+    module_type: str = "add_vltd" # "add_vltd" | "delete_vltd"
     state: BatchState
     summary: BatchSummary
     records: List[CsvRecord] = Field(default_factory=list)

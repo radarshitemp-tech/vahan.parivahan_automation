@@ -17,8 +17,17 @@ from models import (
 from validator import parse_and_validate_csv
 from selenium_worker import VahanSeleniumWorker
 from logger_service import execution_logger, get_root_log_content, ROOT_LOG_FILE
+from modules.registry import module_registry
+from modules.delete import delete_router
+from modules.add import add_router
+from core.browser_manager import browser_manager
+from core.session_manager import session_manager
 
 app = FastAPI(title="VAHAN VLTD Bulk Automation API", version="2.0.0")
+
+# Mount Modular Routers
+app.include_router(delete_router)
+app.include_router(add_router)
 
 # Enable CORS for React frontend
 app.add_middleware(
@@ -36,12 +45,33 @@ selenium_worker = VahanSeleniumWorker()
 def health_check():
     return {"status": "ok", "service": "VAHAN VLTD Automation Backend", "version": "2.0.0"}
 
+@app.get("/api/modules")
+def list_available_modules():
+    """Returns all enabled automation modules from the central registry."""
+    return module_registry.list_enabled()
+
+@app.get("/api/session")
+def get_browser_session_status():
+    """Returns active Chrome browser and authentication status."""
+    return session_manager.get_session_info()
+
+@app.post("/api/browser/close")
+def close_browser_session():
+    """Closes the current browser session gracefully."""
+    browser_manager.close_browser()
+    selenium_worker.driver = None
+    return {"message": "Browser session closed successfully."}
+
 @app.post("/api/vahan/batches", response_model=BatchResponse)
-async def upload_and_validate_batch(file: UploadFile = File(...)):
+async def upload_and_validate_batch(
+    file: UploadFile = File(...),
+    module_type: str = "add_vltd"
+):
     """
     Accepts multipart CSV upload, validates schema and constraints strictly preserving
     leading zeros and data integrity, stores batch, and returns preview and validation errors.
     Supports any file name or link providing CSV data without restricting to strict .csv extension.
+    Supports modular validation based on module_type ('add_vltd' or 'delete_vltd').
     """
     try:
         content_bytes = await file.read()
@@ -53,7 +83,7 @@ async def upload_and_validate_batch(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=f"Failed to read CSV content: {str(e)}")
 
     try:
-        records, validation_errors, headers = parse_and_validate_csv(csv_text)
+        records, validation_errors, headers = parse_and_validate_csv(csv_text, module_type=module_type)
     except ValueError as val_err:
         raise HTTPException(status_code=422, detail=str(val_err))
     except Exception as e:
@@ -87,6 +117,7 @@ async def upload_and_validate_batch(file: UploadFile = File(...)):
     batch_response = BatchResponse(
         batch_id=batch_id,
         file_name=safe_file_name,
+        module_type=module_type,
         state=state,
         summary=summary,
         records=records,

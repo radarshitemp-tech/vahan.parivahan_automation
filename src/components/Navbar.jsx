@@ -1,3 +1,4 @@
+// src/components/Navbar.jsx
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useCsv } from '../context/CsvContext';
@@ -7,7 +8,9 @@ import {
 } from '@mui/material';
 import TableChartIcon from '@mui/icons-material/TableChart';
 import HomeIcon from '@mui/icons-material/Home';
-import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
+import ArticleIcon from '@mui/icons-material/Article';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 
 export default function Navbar() {
@@ -21,7 +24,7 @@ export default function Navbar() {
           <TableChartIcon fontSize="medium" />
         </div>
         <div className="brand-title">
-          One Sol <span className="brand-badge">Studio</span>
+          VAHAN <span className="brand-badge">Studio</span>
         </div>
       </div>
 
@@ -32,15 +35,31 @@ export default function Navbar() {
           end
         >
           <HomeIcon fontSize="small" />
-          <span>Home</span>
+          <span>Dashboard</span>
         </NavLink>
 
         <NavLink
-          to="/extract"
+          to="/modules/add"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
-          <FileDownloadIcon fontSize="small" />
-          <span>Extract CSV</span>
+          <AddCircleOutlineIcon fontSize="small" />
+          <span>Add VLTD</span>
+        </NavLink>
+
+        <NavLink
+          to="/modules/delete"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <LockOpenIcon fontSize="small" />
+          <span>Unlock / Delete</span>
+        </NavLink>
+
+        <NavLink
+          to="/logs"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <ArticleIcon fontSize="small" />
+          <span>Logs</span>
         </NavLink>
       </div>
 
