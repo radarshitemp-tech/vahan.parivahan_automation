@@ -1,3 +1,4 @@
+
 name: Deploy Frontend to GitHub Pages
 
 on:
@@ -21,7 +22,9 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -33,10 +36,13 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build Production Frontend
         run: npm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_APP_ENV: ${{ vars.VITE_APP_ENV }}
 
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
@@ -49,4 +55,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
