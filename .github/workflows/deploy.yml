@@ -41,8 +41,7 @@ jobs:
       - name: Build Production Frontend
         run: npm run build
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
-          VITE_APP_ENV: ${{ vars.VITE_APP_ENV }}
+          VITE_BASE_URL: ${{ secrets.VITE_BASE_URL }}
 
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
