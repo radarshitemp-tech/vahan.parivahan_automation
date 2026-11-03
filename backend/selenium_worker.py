@@ -33,6 +33,8 @@ from validator import normalize_header
 from core.browser_manager import (
     create_robust_chrome_options,
     launch_chrome_with_fallback,
+    safe_driver_get,
+    is_devtools_port_active,
     browser_manager
 )
 
@@ -146,16 +148,17 @@ class VahanSeleniumWorker:
                 candidate_ports.append(p)
 
         for port in candidate_ports:
-            try:
-                s = socket.create_connection(('127.0.0.1', port), timeout=0.15)
-                s.close()
-            except Exception:
+            # Fast verification before attempting ChromeDriver connection to prevent 120s ReadTimeoutError
+            if not is_devtools_port_active(port):
                 continue
 
             try:
                 att_opts = Options()
                 att_opts.add_experimental_option("debuggerAddress", f"127.0.0.1:{port}")
+                att_opts.page_load_strategy = "eager"
                 d = webdriver.Chrome(options=att_opts)
+                d.set_page_load_timeout(30)
+                d.set_script_timeout(30)
                 _ = d.current_window_handle
                 self.driver = d
                 logger.info(f"Auto-attached to running Chrome on 127.0.0.1:{port}")
@@ -219,7 +222,21 @@ class VahanSeleniumWorker:
                     logger.info("Chrome launched successfully.")
 
                 logger.info(f"Navigating to {TARGET_PORTAL_URL}...")
-                self.driver.get(TARGET_PORTAL_URL)
+                ok, nav_msg = safe_driver_get(self.driver, TARGET_PORTAL_URL, timeout=30)
+                if not ok:
+                    curr = ""
+                    try:
+                        curr = self.driver.current_url.lower()
+                    except Exception:
+                        pass
+                    if "parivahan" not in curr and "vahan" not in curr:
+                        err_detail = (
+                            f"Portal connection timed out: {nav_msg}. "
+                            "Note: Indian Government portals (parivahan.gov.in) strictly block and drop "
+                            "traffic originating from foreign cloud servers (e.g. Render/AWS in US/Europe). "
+                            "Please run the backend locally or use an Indian residential/domestic connection."
+                        )
+                        raise RuntimeError(err_detail)
                 time.sleep(2.5)
 
                 inventory = self._inspect_current_page(is_initial_launch=True)
@@ -1013,7 +1030,7 @@ class VahanSeleniumWorker:
             # If authenticated and on retrofitment home or another page, navigate to SLD fitting details
             if "retrofitment" in curr_url and "sldfittingdetails" not in curr_url and "sessionexpire" not in curr_url and "login" not in curr_url:
                 logger.info("Authenticated on portal but not on SLD Fitting page. Navigating to sldfittingDetails.xhtml...")
-                self.driver.get(TARGET_PORTAL_URL)
+                safe_driver_get(self.driver, TARGET_PORTAL_URL, timeout=30)
                 time.sleep(1.5)
                 self._wait_for_primefaces_ajax(timeout=5.0)
 
@@ -2505,7 +2522,7 @@ class VahanSeleniumWorker:
             # 3. Clean navigation back to SLD fitting details if URL drifted
             curr_url = self.driver.current_url.lower()
             if "sldfittingdetails" not in curr_url:
-                self.driver.get(TARGET_PORTAL_URL)
+                safe_driver_get(self.driver, TARGET_PORTAL_URL, timeout=30)
                 time.sleep(1.5)
             else:
                 self._wait_for_primefaces_ajax(timeout=1.0)

@@ -7,7 +7,7 @@ import socket
 import tempfile
 import threading
 import logging
-from typing import Optional
+from typing import Optional, Tuple
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
@@ -42,6 +42,12 @@ def create_robust_chrome_options(headless: Optional[bool] = None) -> Options:
     options.add_argument("--disable-notifications")
     options.add_argument("--disable-software-rasterizer")
     options.add_argument("--disable-extensions")
+    options.add_argument("--disable-background-networking")
+    options.add_argument("--disable-sync")
+    options.add_argument("--metrics-recording-only")
+
+    # Eager strategy so page doesn't hang waiting for slow third-party scripts/images
+    options.page_load_strategy = "eager"
 
     # Anti-detection parameters
     options.add_argument("--disable-blink-features=AutomationControlled")
@@ -55,10 +61,12 @@ def launch_chrome_with_fallback(options: Optional[Options] = None) -> webdriver.
     Attempts to launch Chrome with the given options.
     If launch fails with session not created / instance exited (e.g. on headless servers),
     automatically attempts fallback to --headless=new.
+    Sets explicit page load and script timeouts to prevent hanging.
     """
     opts = options or create_robust_chrome_options()
+    drv = None
     try:
-        return webdriver.Chrome(options=opts)
+        drv = webdriver.Chrome(options=opts)
     except Exception as launch_err:
         err_str = str(launch_err)
         # Check if already headless
@@ -66,8 +74,59 @@ def launch_chrome_with_fallback(options: Optional[Options] = None) -> webdriver.
         if ("instance exited" in err_str.lower() or "session not created" in err_str.lower()) and "--headless=new" not in arg_list:
             logger.warning(f"Visible Chrome launch failed ({err_str}). Retrying with --headless=new fallback...")
             fallback_opts = create_robust_chrome_options(headless=True)
-            return webdriver.Chrome(options=fallback_opts)
-        raise
+            drv = webdriver.Chrome(options=fallback_opts)
+        else:
+            raise
+
+    # Configure bounded timeouts to prevent 120s ReadTimeoutError when portals hang
+    if drv is not None:
+        try:
+            drv.set_page_load_timeout(30)
+            drv.set_script_timeout(30)
+        except Exception:
+            pass
+
+    return drv
+
+def is_devtools_port_active(port: int) -> bool:
+    """
+    Verifies that the given port is an actively responding Chrome DevTools WebSocket / HTTP endpoint.
+    Prevents ChromeDriver from hanging for 120s if the port is stale, dead, or non-Chrome.
+    """
+    import urllib.request
+    import json
+    try:
+        url = f"http://127.0.0.1:{port}/json/version"
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=0.6) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            return "webSocketDebuggerUrl" in data or "Browser" in data
+    except Exception:
+        return False
+
+def safe_driver_get(driver: webdriver.Chrome, url: str, timeout: int = 30) -> Tuple[bool, str]:
+    """
+    Safely navigates driver to URL with explicit timeout handling.
+    Prevents ChromeDriver from hanging indefinitely if a firewall blocks/drops packets.
+    """
+    try:
+        driver.set_page_load_timeout(timeout)
+    except Exception:
+        pass
+
+    try:
+        driver.get(url)
+        return True, "Navigation successful."
+    except Exception as e:
+        err_msg = str(e)
+        logger.warning(f"Note on driver.get({url}): {err_msg}")
+        try:
+            curr = driver.current_url.lower()
+            if "parivahan" in curr or "vahan" in curr:
+                return True, f"Landed on page ({curr}) despite subresource timeout."
+        except Exception:
+            pass
+        return False, f"Navigation to {url} timed out: {err_msg}"
 
 class BrowserManager:
     """
@@ -137,16 +196,17 @@ class BrowserManager:
                 candidate_ports.append(p)
 
         for port in candidate_ports:
-            try:
-                s = socket.create_connection(('127.0.0.1', port), timeout=0.15)
-                s.close()
-            except Exception:
+            # Fast verification before attempting ChromeDriver connection to prevent 120s ReadTimeoutError
+            if not is_devtools_port_active(port):
                 continue
 
             try:
                 att_opts = Options()
                 att_opts.add_experimental_option("debuggerAddress", f"127.0.0.1:{port}")
+                att_opts.page_load_strategy = "eager"
                 d = webdriver.Chrome(options=att_opts)
+                d.set_page_load_timeout(30)
+                d.set_script_timeout(30)
                 _ = d.current_window_handle
                 self._driver = d
                 logger.info(f"Auto-attached to running Chrome on 127.0.0.1:{port}")
@@ -180,11 +240,11 @@ class BrowserManager:
                     curr_url = self._driver.current_url.lower()
                     if target_url.lower() not in curr_url:
                         logger.info(f"Navigating to {target_url}...")
-                        self._driver.get(target_url)
+                        safe_driver_get(self._driver, target_url, timeout=30)
                         time.sleep(1.5)
                 except Exception as e:
                     logger.warning(f"Error checking/navigating URL: {e}")
-                    self._driver.get(target_url)
+                    safe_driver_get(self._driver, target_url, timeout=30)
                     time.sleep(1.5)
 
             return self._driver

@@ -74,6 +74,10 @@ class ReplaceVltdAutomationHandler:
         """
         driver = self._get_driver()
         try:
+            driver.set_page_load_timeout(30)
+        except Exception:
+            pass
+        try:
             curr_url = driver.current_url.lower()
             if "sldfittingdetails" not in curr_url:
                 logger.info(f"Navigating to SLD Fitting / Replacement page: {REPLACE_PORTAL_URL}...")
